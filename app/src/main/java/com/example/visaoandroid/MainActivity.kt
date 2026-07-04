@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.Matrix
+import android.graphics.RectF
 import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity
 import androidx.camera.core.CameraSelector
@@ -13,6 +14,10 @@ import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import com.google.android.gms.tasks.Tasks
+import com.google.mlkit.vision.common.InputImage
+import com.google.mlkit.vision.face.FaceDetection
+import com.google.mlkit.vision.face.FaceDetectorOptions
 import org.tensorflow.lite.support.image.TensorImage
 import org.tensorflow.lite.task.core.BaseOptions
 import org.tensorflow.lite.task.vision.detector.Detection
@@ -26,8 +31,15 @@ class MainActivity : AppCompatActivity() {
     private lateinit var objectDetector: ObjectDetector
     private val cameraExecutor = Executors.newSingleThreadExecutor()
 
-    private val personThreshold = 0.2f
+    private val personThreshold = 0.15f
     private val otherThreshold = 0.5f
+
+    private val faceDetector by lazy {
+        val options = FaceDetectorOptions.Builder()
+            .setPerformanceMode(FaceDetectorOptions.PERFORMANCE_MODE_FAST)
+            .build()
+        FaceDetection.getClient(options)
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -61,8 +73,8 @@ class MainActivity : AppCompatActivity() {
     private fun setupDetector() {
         val options = ObjectDetector.ObjectDetectorOptions.builder()
             .setBaseOptions(BaseOptions.builder().setNumThreads(4).build())
-            .setMaxResults(10)
-            .setScoreThreshold(0.15f)
+            .setMaxResults(15)
+            .setScoreThreshold(0.1f)
             .build()
         objectDetector = ObjectDetector.createFromFileAndOptions(
             this, "efficientdet-lite0.tflite", options
@@ -107,8 +119,16 @@ class MainActivity : AppCompatActivity() {
                     }
                 }
 
+                val faceRects: List<RectF> = try {
+                    val inputImage = InputImage.fromBitmap(rotatedBitmap, 0)
+                    val faces = Tasks.await(faceDetector.process(inputImage))
+                    faces.map { face -> RectF(face.boundingBox) }
+                } catch (e: Exception) {
+                    listOf()
+                }
+
                 runOnUiThread {
-                    overlayView.setResults(filtered, rotatedBitmap.width, rotatedBitmap.height)
+                    overlayView.setResults(filtered, faceRects, rotatedBitmap.width, rotatedBitmap.height)
                 }
                 imageProxy.close()
             }
