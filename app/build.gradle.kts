@@ -43,4 +43,5 @@ dependencies {
     implementation("androidx.camera:camera-view:1.3.4")
 
     implementation("org.tensorflow:tensorflow-lite-task-vision:0.4.4")
+    implementation("com.google.mlkit:face-detection:16.1.7")
 }
