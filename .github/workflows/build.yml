@@ -29,7 +29,7 @@ jobs:
       - name: Download detection model
         run: |
           mkdir -p app/src/main/assets
-          curl -L -o app/src/main/assets/efficientdet-lite0.tflite https://storage.googleapis.com/download.tensorflow.org/models/tflite/task_library/object_detection/android/lite-model_efficientdet_lite0_detection_metadata_1.tflite
+          curl -L -o app/src/main/assets/efficientdet-lite2.tflite https://storage.googleapis.com/download.tensorflow.org/models/tflite/task_library/object_detection/android/lite-model_efficientdet_lite2_detection_metadata_1.tflite
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
