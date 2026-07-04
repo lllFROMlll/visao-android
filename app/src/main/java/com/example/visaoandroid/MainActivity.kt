@@ -2,11 +2,12 @@ package com.example.visaoandroid
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.graphics.Bitmap
+import android.graphics.Matrix
 import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageAnalysis
-import androidx.camera.core.ImageProxy
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
@@ -14,6 +15,7 @@ import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import org.tensorflow.lite.support.image.TensorImage
 import org.tensorflow.lite.task.core.BaseOptions
+import org.tensorflow.lite.task.vision.detector.Detection
 import org.tensorflow.lite.task.vision.detector.ObjectDetector
 import java.util.concurrent.Executors
 
@@ -23,6 +25,9 @@ class MainActivity : AppCompatActivity() {
     private lateinit var overlayView: OverlayView
     private lateinit var objectDetector: ObjectDetector
     private val cameraExecutor = Executors.newSingleThreadExecutor()
+
+    private val personThreshold = 0.2f
+    private val otherThreshold = 0.5f
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -56,8 +61,8 @@ class MainActivity : AppCompatActivity() {
     private fun setupDetector() {
         val options = ObjectDetector.ObjectDetectorOptions.builder()
             .setBaseOptions(BaseOptions.builder().setNumThreads(4).build())
-            .setMaxResults(5)
-            .setScoreThreshold(0.5f)
+            .setMaxResults(10)
+            .setScoreThreshold(0.15f)
             .build()
         objectDetector = ObjectDetector.createFromFileAndOptions(
             this, "efficientdet-lite0.tflite", options
@@ -78,7 +83,34 @@ class MainActivity : AppCompatActivity() {
                 .build()
 
             analysis.setAnalyzer(cameraExecutor) { imageProxy ->
-                detectObjects(imageProxy)
+                val rotation = imageProxy.imageInfo.rotationDegrees
+                val original = imageProxy.toBitmap()
+
+                val rotatedBitmap = if (rotation != 0) {
+                    val matrix = Matrix()
+                    matrix.postRotate(rotation.toFloat())
+                    Bitmap.createBitmap(original, 0, 0, original.width, original.height, matrix, true)
+                } else {
+                    original
+                }
+
+                val tensorImage = TensorImage.fromBitmap(rotatedBitmap)
+                val rawResults = objectDetector.detect(tensorImage)
+
+                val filtered = rawResults.filter { detection: Detection ->
+                    val label = detection.categories.firstOrNull()?.label ?: ""
+                    val score = detection.categories.firstOrNull()?.score ?: 0f
+                    if (label == "person") {
+                        score >= personThreshold
+                    } else {
+                        score >= otherThreshold
+                    }
+                }
+
+                runOnUiThread {
+                    overlayView.setResults(filtered, rotatedBitmap.width, rotatedBitmap.height)
+                }
+                imageProxy.close()
             }
 
             val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
@@ -86,15 +118,5 @@ class MainActivity : AppCompatActivity() {
             cameraProvider.unbindAll()
             cameraProvider.bindToLifecycle(this, cameraSelector, preview, analysis)
         }, ContextCompat.getMainExecutor(this))
-    }
-
-    private fun detectObjects(imageProxy: ImageProxy) {
-        val bitmap = imageProxy.toBitmap()
-        val tensorImage = TensorImage.fromBitmap(bitmap)
-        val results = objectDetector.detect(tensorImage)
-        runOnUiThread {
-            overlayView.setResults(results)
-        }
-        imageProxy.close()
     }
 }
