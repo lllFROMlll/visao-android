@@ -31,7 +31,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var objectDetector: ObjectDetector
     private val cameraExecutor = Executors.newSingleThreadExecutor()
 
-    private val personThreshold = 0.15f
+    private val personThreshold = 0.35f
     private val otherThreshold = 0.5f
 
     private val faceDetector by lazy {
@@ -77,7 +77,7 @@ class MainActivity : AppCompatActivity() {
             .setScoreThreshold(0.1f)
             .build()
         objectDetector = ObjectDetector.createFromFileAndOptions(
-            this, "efficientdet-lite0.tflite", options
+            this, "efficientdet-lite2.tflite", options
         )
     }
 
